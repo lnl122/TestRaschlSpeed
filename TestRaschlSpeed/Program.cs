@@ -29,7 +29,8 @@ namespace TestRaschlSpeed
         {
             // проверяемая строка
             string test = "скандинавы (2) самоуправствовать(3) невесомость(1) перечисление(3) подтверждение(1) новостройка(3) разбиться(1)";
-            test = "лошадь (2) типаж(2) тапок(2)";
+            test = "авторитарный (2) надпороть(2) головоногие(1) жаркое(1) стлать(2) одноклассник(3) кофейник(1) захаркать(1)";
+            //test = "Принц (2) Нерадивец (3) Идеал (2) Барсук (1) Мораль (3) Проныра (1) Ведомость (4)";
             // нормализуем строку в наш формат, и, готовим перечень слов с количествами букв для взятия из каждого из слов
             Raschl.OneStr os = Raschl.Prepare(Raschl.Normalize(test));
 
@@ -38,58 +39,57 @@ namespace TestRaschlSpeed
             stopWatch.Start();
             // читаем файл словаря
             ReadWordDictionary(@"C:\TEMP\dict2.txt", @"C:\TEMP\dict2.db", Encoding.Unicode);
-            //Console.WriteLine(dict_str.Length.ToString());
             stopWatch.Stop();
-            TimeSpan ts1 = stopWatch.Elapsed;
+            WriteTimeSpan("reading dictionary time =      ", stopWatch.Elapsed);
 
-
-            stopWatch.Restart();
-            // выполняем поиск всех вариантов
-            string[] wrds = Raschl.Transposition(os);
-            stopWatch.Stop();
-            TimeSpan ts2 = stopWatch.Elapsed;
-
-            stopWatch.Restart();
-            // убираем дубликаты
-            string[] wrds2 = wrds;//.Distinct().ToArray();
-            stopWatch.Stop();
-            TimeSpan ts3 = stopWatch.Elapsed;
-
-            Console.WriteLine("wrds.Count =                   " + wrds.Count());
-            stopWatch.Restart();
-            // ищем в словаре
-            int len = wrds[1].Length;
-            foreach(string ww in wrds)
-            {
-                //sql_cmd = sql_con.CreateCommand();
-                //sql_cmd.CommandText = "CREATE TABLE Words ( wrd VARCHAR(50), len INTEGER)";
-                //sql_cmd.ExecuteNonQuery();
-                sql_cmd = sql_con.CreateCommand();
-                sql_cmd.CommandText = "SELECT * FROM (SELECT * FROM Words WHERE len = " + len + ") Words2 INNER JOIN " +
-                    " SELECT p1.q+p2.q FROM (SELECT (SELECT 'лоп' a UNION SELECT '111') p1 CROSS JOIN (SELECT (SELECT 'ата' a UNION SELECT '111') p2) Parts";
-                SQLiteDataReader reader = sql_cmd.ExecuteReader();
-                while (reader.Read())
-                {
-                    Console.WriteLine(reader["wrd"].ToString());
-                }
-            }
-            stopWatch.Stop();
-            TimeSpan ts4 = stopWatch.Elapsed;
-
-
-
-            // выводим результаты замеров с сопутствующими метриками количеств слов
-            WriteTimeSpan(    "read dictionary time =         ", ts1);
-            WriteTimeSpan(    "search all variants time =     ", ts2);
-            Console.WriteLine("wrds.Count =                   " + wrds.Count());
-            WriteTimeSpan(    "kill dupes time =              ", ts3);
-            Console.WriteLine("wrds2.Count (after Distinct) = " + wrds2.Count());
-            WriteTimeSpan(    "searching time =               ", ts4);
+            Solve("Принц (2) Нерадивец (3) Идеал (2) Барсук (1) Мораль (3) Проныра (1) Ведомость (4)");
+            Solve("скандинавы (2) самоуправствовать(3) невесомость(1) перечисление(3) подтверждение(1) новостройка(3) разбиться(1)");
+            Solve("авторитарный (2) надпороть(2) головоногие(1) жаркое(1) стлать(2) одноклассник(3) кофейник(1) захаркать(1)");
 
             sql_con.Close();
-
+            Console.WriteLine(" ");
+            Console.WriteLine("it's all.. press any key to quit..");
             // ждем ввода для закрытия окна
             string k = Console.ReadLine();
+        }
+
+        private static void Solve(string v)
+        {
+            Console.WriteLine(" ");
+            Console.WriteLine("Task: " + v);
+
+            Stopwatch stopWatch = new Stopwatch();
+            stopWatch.Start();
+            sql_cmd = sql_con.CreateCommand();
+            string query = Raschl.GetSqlStr(Raschl.Prepare(Raschl.Normalize(v)));
+            sql_cmd.CommandText = query;
+            stopWatch.Stop();
+            Console.WriteLine(" ");
+            WriteTimeSpan("prepare data for solve =       ", stopWatch.Elapsed);
+
+            stopWatch.Restart();
+            SQLiteDataReader reader = sql_cmd.ExecuteReader();
+            stopWatch.Stop();
+            WriteTimeSpan("sqlite job time =              ", stopWatch.Elapsed);
+
+            stopWatch.Restart();
+            DataSet ds_res = new DataSet();
+            ds_res.Tables.Add("wrd");
+            ds_res.Tables[0].Load(reader);
+            List<string> res = new List<string>();
+            foreach (DataRow drc in ds_res.Tables[0].Rows)
+            {
+                res.Add(drc[0].ToString());
+            }
+            stopWatch.Stop();
+            WriteTimeSpan("reading result table time =    ", stopWatch.Elapsed);
+            Console.WriteLine(" ");
+
+            foreach(string ss in res)
+            {
+                Console.WriteLine(ss);
+            }
+            //Console.WriteLine(" ");
         }
 
         /// <summary>
@@ -142,7 +142,7 @@ namespace TestRaschlSpeed
         /// <param name="ts">TimeSpan</param>
         public static void WriteTimeSpan(string str, TimeSpan ts)
         {
-            Console.WriteLine(str + String.Format("{0:00}:{1:00}:{2:00}.{3:000}", ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 100));
+            Console.WriteLine(str + String.Format("{0:00}:{1:00}:{2:00}.{3:000}", ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds));
         }
     }
 
@@ -156,14 +156,14 @@ namespace TestRaschlSpeed
         }
 
         /// <summary>
-        /// готовит набор вероятных слов
+        /// готовит строку для запроса
         /// </summary>
         /// <param name="d">структура расчлененки</param>
-        /// <returns>массив слов</returns>
-        public static string[] Transposition(OneStr d)
+        /// <returns>часть скуль запроса</returns>
+        public static string GetSqlStr(OneStr d)
         {
             // для пустых структур - выходим
-            if (d.num.Length == 0) { return new string[0]; }
+            if (d.num.Length == 0) { return ""; }
 
             // количество слов
             int words = d.str.Length;
@@ -173,9 +173,10 @@ namespace TestRaschlSpeed
             // текущие координаты
             int[] cur = new int[words];
             // длинна слов
-            int[] sta = new int[words]; 
+            int[] sta = new int[words];
             // всего вариантов
             int total = 1;
+            int common_len = 0;
             for (int i = 0; i < words; i++)
             {
                 // для каждого слова - начальный счетчик его части = 0
@@ -184,15 +185,27 @@ namespace TestRaschlSpeed
                 sta[i] = d.str[i].Length - d.num[i]; // максимальное начало строки, с нуля 0..ххх
                 // счетчик количества вариантов
                 total = total * (sta[i] + 1);
+                common_len += d.num[i];
             }
+            Console.WriteLine("total = " + total.ToString());
 
-            // подготовка частей слов, +20% скорости
+            // "SELECT * FROM Words INNER JOIN 
+            // (SELECT a1 || a2 || a3 tst FROM 
+            //string res = "SELECT tst wrd FROM (SELECT a1 ";
+            string res = "SELECT * FROM (SELECT a1";
+            for (int i = 1; i < words; i++)
+            {
+                res = res + " || a" + (i + 1).ToString();
+            }
+            res = res + " tst FROM ";
+
+            // подготовка частей слов
             List<string[]> parts = new List<string[]>(words);
             for (int i = 0; i < words; i++)
             {
                 // для каждого слова его подстроки храним в отдельном массиве
                 string[] parts_one = new string[sta[i] + 1];
-                for(int j = 0; j <= sta[i]; j++)
+                for (int j = 0; j <= sta[i]; j++)
                 {
                     parts_one[j] = d.str[i].Substring(j, d.num[i]);
                 }
@@ -200,40 +213,33 @@ namespace TestRaschlSpeed
                 parts.Add(parts_one);
             }
 
-            // массив для всех вариантов слов
-            string[] allwrds = new string[total];
-            // текущий индекс
-            int curwrd = 0;
-
-            // здесь собираем текущий вариант
-            StringBuilder r3 = new StringBuilder();
-            while (cur[words - 1] <= sta[words - 1])
+            // (SELECT 'ло' a1 UNION SELECT 'лъ') p1 
+            res = res + "(SELECT '" + parts[0][0] + "' a1 ";
+            for (int i = 1; i < parts[0].Length; i++)
             {
-                r3.Clear();
-                //r3.Append(" ");
-                // (!) если тело цикла собрать в { } - удивительно что производительнсть будет ниже на 20%
-                for (int i = 0; i < words; i++)
-                    r3.Append(parts[i][cur[i]]);
+                res = res + " UNION SELECT '" + parts[0][i] + "'";
+            }
+            res = res + ") p1 ";
 
-                // добавим найденной слово, увеличиваем счетчик
-                // (?) м.б. делать массив stringBuilder'ов, чтоб не тратить время на перевод в строку?
-                //r3.Append(" ");
-                allwrds[curwrd] = r3.ToString();
-                curwrd++;
-
-                // корректируем индексы частей слов
-                cur[0]++; // увеличим начальный
-                for (int i = 0; i < words - 1; i++)
+            for(int w = 1; w < words; w++)
+            {
+                // CROSS JOIN (SELECT 'па' a2 UNION SELECT 'йй') p2
+                // CROSS JOIN (SELECT 'хх' a3 UNION SELECT 'та') p3
+                res = res + "CROSS JOIN (SELECT '" + parts[w][0] + "' a" + (w + 1).ToString() + " ";
+                for (int i = 1; i < parts[w].Length; i++)
                 {
-                    if (cur[i] > sta[i]) // если он преодолел максимум - корректируем его =0 и следующий ++
-                    {
-                        cur[i] = 0;
-                        cur[i + 1]++;
-                    }
+                    res = res + " UNION SELECT '" + parts[w][i] + "'";
                 }
-            }//while
+                res = res + ") p" + (w + 1).ToString() + " ";
+            }
 
-            return allwrds;
+            // ) pp ON pp.tst=Words.wrd";
+            //res = res + ") ";
+            res = res + ") pp INNER JOIN w" + common_len.ToString() + " ww ON pp.tst = ww.wrd";
+            //res = res + ") pp INNER JOIN Words ww ON pp.tst = ww.wrd";
+            //res = res + ") pp INNER JOIN (SELECT * FROM Words WHERE len = " + common_len + ") ww ON pp.tst = ww.wrd";
+
+            return res;
         }
 
         /// <summary>
