@@ -39,12 +39,33 @@ namespace TestRaschlSpeed
             stopWatch.Start();
             // читаем файл словаря
             ReadWordDictionary(@"C:\TEMP\dict2.txt", @"C:\TEMP\dict2.db", Encoding.Unicode);
+
+            SetPragma("auto_vacuum = 0");
+            SetPragma("case_sensitive_like = true");
+            //SetPragma("case_sensitive_like = true");
+            SetPragma("cell_size_check = false");
+            SetPragma("count_changes = false");
+            SetPragma("fullfsync = false");
+            SetPragma("synchronous = OFF");
+            SetPragma("temp_store = MEMORY");
+            SetPragma("query_only = true");
+
+            //SetPragma("automatic_index = false"); // сильно замедляет !!!
+            SetPragma("journal_mode = OFF");
+            SetPragma("cache_size = -200000");
+            SetPragma("ignore_check_constraints = false");
+            ////SetPragma("journal_mode = MEMORY");
+            SetPragma("mmap_size = 268435456");
+            ////SetPragma("page_size = 4096");
+            ////SetPragma("page_size = 16384");
+            SetPragma("page_size = 65536");
+
             stopWatch.Stop();
             WriteTimeSpan("reading dictionary time =      ", stopWatch.Elapsed);
 
+            Solve("авторитарный (2) надпороть(2) головоногие(1) жаркое(1) стлать(2) одноклассник(3) кофейник(1) захаркать(1)");
             Solve("Принц (2) Нерадивец (3) Идеал (2) Барсук (1) Мораль (3) Проныра (1) Ведомость (4)");
             Solve("скандинавы (2) самоуправствовать(3) невесомость(1) перечисление(3) подтверждение(1) новостройка(3) разбиться(1)");
-            Solve("авторитарный (2) надпороть(2) головоногие(1) жаркое(1) стлать(2) одноклассник(3) кофейник(1) захаркать(1)");
 
             sql_con.Close();
             Console.WriteLine(" ");
@@ -53,10 +74,17 @@ namespace TestRaschlSpeed
             string k = Console.ReadLine();
         }
 
+        private static void SetPragma(string v)
+        {
+            sql_cmd = sql_con.CreateCommand();
+            sql_cmd.CommandText = "PRAGMA " + v;
+            sql_cmd.ExecuteNonQuery();
+        }
+
         private static void Solve(string v)
         {
-            Console.WriteLine(" ");
-            Console.WriteLine("Task: " + v);
+            //Console.WriteLine(" ");
+            //Console.WriteLine("Task: " + v);
 
             Stopwatch stopWatch = new Stopwatch();
             stopWatch.Start();
@@ -65,7 +93,7 @@ namespace TestRaschlSpeed
             sql_cmd.CommandText = query;
             stopWatch.Stop();
             Console.WriteLine(" ");
-            WriteTimeSpan("prepare data for solve =       ", stopWatch.Elapsed);
+            //WriteTimeSpan("prepare data for solve =       ", stopWatch.Elapsed);
 
             stopWatch.Restart();
             SQLiteDataReader reader = sql_cmd.ExecuteReader();
@@ -85,10 +113,10 @@ namespace TestRaschlSpeed
             WriteTimeSpan("reading result table time =    ", stopWatch.Elapsed);
             Console.WriteLine(" ");
 
-            foreach(string ss in res)
-            {
-                Console.WriteLine(ss);
-            }
+            //foreach(string ss in res)
+            //{
+            //    Console.WriteLine(ss);
+            //}
             //Console.WriteLine(" ");
         }
 
@@ -100,9 +128,6 @@ namespace TestRaschlSpeed
         /// <param name="cp">кодепейдж текстового файла словаря</param>
         public static void ReadWordDictionary(string v, string v2, Encoding cp)
         {
-            StreamReader dict = new StreamReader(v, cp);
-            string dict_str = dict.ReadToEnd();
-            List<string> dict_lst = dict_str.Split(' ').ToList();
             if (File.Exists(v2))
             {
                 sql_con = new SQLiteConnection("Data Source=" + v2 + ";Version=3;New=False;Compress=True;");
@@ -110,6 +135,10 @@ namespace TestRaschlSpeed
             }
             else
             {
+                StreamReader dict = new StreamReader(v, cp);
+                string dict_str = dict.ReadToEnd();
+                List<string> dict_lst = dict_str.Split(' ').ToList();
+
                 sql_con = new SQLiteConnection("Data Source=" + v2 + ";Version=3;New=True;Compress=True;");
                 sql_con.Open();
                 sql_cmd = sql_con.CreateCommand();
@@ -235,7 +264,7 @@ namespace TestRaschlSpeed
 
             // ) pp ON pp.tst=Words.wrd";
             //res = res + ") ";
-            res = res + ") pp INNER JOIN w" + common_len.ToString() + " ww ON pp.tst = ww.wrd";
+            res = res + ") pp INNER JOIN Words ww ON pp.tst = ww.wrd";// WHERE Words.len = " + common_len.ToString();
             //res = res + ") pp INNER JOIN Words ww ON pp.tst = ww.wrd";
             //res = res + ") pp INNER JOIN (SELECT * FROM Words WHERE len = " + common_len + ") ww ON pp.tst = ww.wrd";
 
